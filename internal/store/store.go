@@ -93,7 +93,7 @@ func (s *Store) walk(ctx context.Context, ch chan<- ShortURL) {
 		if !e.IsDir() {
 			long, err := s.Lookup(ctx, e.Name())
 			if err != nil {
-				ch <- ShortURL{Err: fmt.Errorf("read %s: %w", filepath.Join(s.dir, e.Name()), err)}
+				ch <- ShortURL{Err: fmt.Errorf("read ", filepath.Join(s.dir, e.Name()), ": ", err)}
 				continue
 			}
 			ch <- ShortURL{ShortCode: e.Name(), LongURL: long}
@@ -109,7 +109,7 @@ func (s *Store) Lookup(_ context.Context, short string) (string, error) {
 		return "", ErrNotFound
 	}
 	if err != nil {
-		s.logger.Info(fmt.Sprintf("failed to read %s: %v\n", shortcodeFilepath, err))
+		s.logger.Error("failed to read", "code", shortcodeFilepath, "error", err)
 		return "", err
 	}
 	return string(data), nil

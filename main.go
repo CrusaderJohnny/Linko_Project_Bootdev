@@ -5,7 +5,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -41,7 +40,7 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 
 	st, err := store.New(dataDir, kennyLoggins)
 	if err != nil {
-		kennyLoggins.Info(fmt.Sprintf("failed to create store: %v", err))
+		kennyLoggins.Error("failed to create store", "error", err)
 		return 1
 	}
 	s := newServer(*st, httpPort, cancel, kennyLoggins)
@@ -54,31 +53,35 @@ func run(ctx context.Context, cancel context.CancelFunc, httpPort int, dataDir s
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	kennyLoggins.Info(fmt.Sprintln("Linko is shutting down"))
+	kennyLoggins.Debug("Linko is shutting down")
 
 	if err := s.shutdown(shutdownCtx); err != nil {
-		kennyLoggins.Info(fmt.Sprintf("failed to shutdown server: %v", err))
+		kennyLoggins.Error("failed to shutdown server", "error", err)
 		return 1
 	}
 	if serverErr != nil {
-		kennyLoggins.Info(fmt.Sprintf("server error: %v", serverErr))
+		kennyLoggins.Error("server error", "error", serverErr)
 		return 1
 	}
 	return 0
 }
 
 func initializeLogger(logFile string) (*slog.Logger, closeFunc, error) {
+	debugLoggins := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	})
 	if logFile != "" {
 		f, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
 		if err != nil {
 			return nil, nil, err
 		}
-		multiWriter := io.MultiWriter(os.Stderr, f)
-		preLoggins := bufio.NewWriterSize(multiWriter, 8192)
-		kennyLoggins := slog.New(slog.NewTextHandler(preLoggins, nil))
+		buffLoggins := bufio.NewWriterSize(f, 8192)
+		infoLoggins := slog.NewJSONHandler(buffLoggins, &slog.HandlerOptions{
+			Level: slog.LevelInfo,
+		})
 
 		close := func() error {
-			if err := preLoggins.Flush(); err != nil {
+			if err := buffLoggins.Flush(); err != nil {
 				return err
 			}
 			if err := f.Close(); err != nil {
@@ -86,13 +89,14 @@ func initializeLogger(logFile string) (*slog.Logger, closeFunc, error) {
 			}
 			return nil
 		}
+		canHeLoggins := slog.New(slog.NewMultiHandler(debugLoggins, infoLoggins))
 
-		return kennyLoggins, close, nil
+		return canHeLoggins, close, nil
 	}
 	close := func() error {
 		return nil
 	}
-	return slog.New(slog.NewTextHandler(os.Stderr, nil)), close, nil
+	return slog.New(debugLoggins), close, nil
 }
 
 type closeFunc func() error
