@@ -1,9 +1,8 @@
-package internal
+package linkoerr
 
 import (
+	"errors"
 	"log/slog"
-
-	"github.com/pkg/errors"
 )
 
 type errWithAttrs struct {
