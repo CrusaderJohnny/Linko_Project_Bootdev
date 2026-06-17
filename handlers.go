@@ -41,12 +41,12 @@ func (s *server) handlerShortenLink(w http.ResponseWriter, r *http.Request) {
 	}
 	longURL := r.FormValue("url")
 	if longURL == "" {
-		httpError(r.Context(), w, http.StatusBadRequest, errors.New("missing url"))
+		httpError(r.Context(), w, http.StatusBadRequest, errors.New("missing URL"))
 		return
 	}
 	u, err := url.Parse(longURL)
 	if err != nil || u.Scheme == "" || u.Host == "" {
-		httpError(r.Context(), w, http.StatusBadRequest, errors.New("invalid url"))
+		httpError(r.Context(), w, http.StatusBadRequest, errors.New("invalid URL"))
 		return
 	}
 	if err := checkDestination(longURL); err != nil {
