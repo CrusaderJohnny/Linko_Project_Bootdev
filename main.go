@@ -74,37 +74,39 @@ func initializeLogger(logFile string) (*slog.Logger, closeFunc, error) {
 	debugLoggins := slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 		ReplaceAttr: replaceAttr,
 	})
+
+	var handler slog.Handler = debugLoggins
+	var closeFn closeFunc = func() error { return nil }
+
 	if logFile != "" {
 		f, err := os.OpenFile(logFile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
 		if err != nil {
 			return nil, nil, err
 		}
+
 		buffLoggins := bufio.NewWriterSize(f, 8192)
 		infoLoggins := slog.NewJSONHandler(buffLoggins, &slog.HandlerOptions{
 			ReplaceAttr: replaceAttr,
 		})
 
-		close := func() error {
+		closeFn = func() error {
 			if err := buffLoggins.Flush(); err != nil {
 				return err
 			}
-			if err := f.Close(); err != nil {
-				return err
-			}
-			return nil
+			return f.Close()
 		}
-		canHeLoggins := slog.New(slog.NewMultiHandler(debugLoggins, infoLoggins))
-		canHeLoggins = canHeLoggins.With(
-			slog.String("git_sha", build.GitSHA),
-			slog.String("build_time", build.BuildTime),
-		)
+		handler = slog.NewMultiHandler(debugLoggins, infoLoggins)
+	}
+	env := os.Getenv("ENV")
+	hostname, _ := os.Hostname()
 
-		return canHeLoggins, close, nil
-	}
-	close := func() error {
-		return nil
-	}
-	return slog.New(debugLoggins).With(slog.String("git_sha", build.GitSHA), slog.String("build_time", build.BuildTime)), close, nil
+	logger := slog.New(handler).With(
+		slog.String("git_sha", build.GitSHA),
+		slog.String("build_time", build.BuildTime),
+		slog.String("env", env),
+		slog.String("hostname", hostname),
+	)
+	return logger, closeFn, nil
 }
 
 type closeFunc func() error
