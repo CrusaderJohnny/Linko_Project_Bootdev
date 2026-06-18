@@ -69,13 +69,14 @@ func (s *Store) Create(_ context.Context, long string) (string, error) {
 const maxURLs = 10
 
 func (s *Store) List(ctx context.Context) ([]ShortURL, error) {
-	var errs []error
 	ch := make(chan ShortURL)
 	go s.walk(ctx, ch)
 	var urls []ShortURL
+	var errs []error
 	for e := range ch {
 		if e.Err != nil {
 			errs = append(errs, e.Err)
+			continue
 		}
 		urls = append(urls, e)
 		if len(urls) >= maxURLs {
@@ -108,10 +109,10 @@ func (s *Store) Lookup(_ context.Context, short string) (string, error) {
 	shortcodeFilepath := filepath.Join(s.dir, short)
 	data, err := os.ReadFile(shortcodeFilepath)
 	if errors.Is(err, os.ErrNotExist) {
-		return "", ErrNotFound
+		return "", linkoerr.WithAttrs(ErrNotFound, "path", shortcodeFilepath)
 	}
 	if err != nil {
-		return "", err
+		return "", linkoerr.WithAttrs(err, "path", shortcodeFilepath)
 	}
 	return string(data), nil
 }
